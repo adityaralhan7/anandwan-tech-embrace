@@ -212,7 +212,7 @@ const QrGenerator = () => {
                             <FormLabel>Content</FormLabel>
                             <FormControl>
                               <Textarea 
-                                placeholder="Enter the information that will be displayed when scanning the QR code"
+                                placeholder="Enter the information that will be displayed when scanning the QR code (1000-2000 words recommended)"
                                 className="min-h-[200px]"
                                 {...field}
                               />
