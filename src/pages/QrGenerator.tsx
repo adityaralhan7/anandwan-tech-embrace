@@ -17,7 +17,6 @@ import QRCode from 'qrcode.react';
 const formSchema = z.object({
   title: z.string().min(2, { message: 'Title must be at least 2 characters.' }),
   content: z.string().min(50, { message: 'Content must be at least 50 characters.' }).max(5000, { message: 'Content must not exceed 5000 characters.' }),
-  image: z.instanceof(File).optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -100,10 +99,30 @@ const QrGenerator = () => {
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      form.setValue('image', file);
+      // Set a maximum file size (2MB)
+      const maxSize = 2 * 1024 * 1024; // 2MB in bytes
+      
+      if (file.size > maxSize) {
+        toast({
+          title: "File Too Large",
+          description: "Image must be less than 2MB",
+          variant: "destructive"
+        });
+        return;
+      }
+      
       const reader = new FileReader();
       reader.onload = () => {
-        setSelectedImage(reader.result as string);
+        // Store image as data URL but with size limitation
+        const result = reader.result as string;
+        setSelectedImage(result);
+      };
+      reader.onerror = () => {
+        toast({
+          title: "Error",
+          description: "Failed to read image file",
+          variant: "destructive"
+        });
       };
       reader.readAsDataURL(file);
     }
@@ -112,39 +131,63 @@ const QrGenerator = () => {
   const onSubmit = (data: FormValues) => {
     console.log('QR Generator form submitted:', data);
     
-    // Create QR data content
-    const qrContent = {
-      title: data.title,
-      content: data.content,
-      imageUrl: selectedImage || '',
-      createdBy: user,
-      createdAt: new Date().toISOString(),
-    };
-    
-    // Convert to JSON string
-    const jsonData = JSON.stringify(qrContent);
-    
-    // Set QR data and show QR code
-    setQrData(jsonData);
-    setQrGenerated(true);
-    
-    toast({
-      title: "QR Code Generated",
-      description: "Your QR code has been successfully generated.",
-    });
+    try {
+      // Create QR data content - limit the image size in the QR code
+      const qrContent = {
+        title: data.title,
+        content: data.content,
+        // Only include image info, not the full data URL
+        hasImage: !!selectedImage,
+        createdBy: user,
+        createdAt: new Date().toISOString(),
+      };
+      
+      // Convert to JSON string
+      const jsonData = JSON.stringify(qrContent);
+      
+      // Set QR data and show QR code
+      setQrData(jsonData);
+      setQrGenerated(true);
+      
+      toast({
+        title: "QR Code Generated",
+        description: "Your QR code has been successfully generated.",
+      });
+    } catch (error) {
+      console.error("Error generating QR code:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate QR code. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const downloadQrCode = () => {
     if (qrRef.current) {
       const canvas = qrRef.current.querySelector('canvas');
       if (canvas) {
-        const pngUrl = canvas.toDataURL('image/png').replace('image/png', 'image/octet-stream');
-        const downloadLink = document.createElement('a');
-        downloadLink.href = pngUrl;
-        downloadLink.download = `anandwan-qr-${form.getValues('title').replace(/\s+/g, '-').toLowerCase()}.png`;
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        document.body.removeChild(downloadLink);
+        try {
+          const pngUrl = canvas.toDataURL('image/png').replace('image/png', 'image/octet-stream');
+          const downloadLink = document.createElement('a');
+          downloadLink.href = pngUrl;
+          downloadLink.download = `anandwan-qr-${form.getValues('title').replace(/\s+/g, '-').toLowerCase() || 'code'}.png`;
+          document.body.appendChild(downloadLink);
+          downloadLink.click();
+          document.body.removeChild(downloadLink);
+          
+          toast({
+            title: "Success",
+            description: "QR code downloaded successfully",
+          });
+        } catch (error) {
+          console.error("Error downloading QR code:", error);
+          toast({
+            title: "Download Failed",
+            description: "Could not download the QR code. Try again.",
+            variant: "destructive"
+          });
+        }
       }
     }
   };
